@@ -14,6 +14,9 @@ from model import Restormer
 from utils import parse_args, RainDataset, rgb_to_y, psnr, ssim
 
 def setup_ddp(rank, world_size, backend):
+    os.environ['RANK'] = str(rank)
+    os.environ['WORLD_SIZE'] = str(world_size)
+    os.environ['LOCAL_RANK'] = str(rank)
     dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
     if backend == "nccl":
         torch.cuda.set_device(rank)
@@ -58,26 +61,33 @@ def save_loop(model, data_loader, num_iter, results, best_psnr, best_ssim, args,
     return best_psnr, best_ssim
 
 def main_worker(rank, world_size, args):
+    print(f"[Rank {rank}] Starting DDP setup...")
     setup_ddp(rank, world_size, args.backend)
+    print(f"[Rank {rank}] DDP setup done.")
+
     device = torch.device(f"cuda:{rank}" if args.backend == "nccl" else "cpu")
+    print(f"[Rank {rank}] Using device {device}")
 
+    print(f"[Rank {rank}] Initializing model...")
     model = Restormer(args.num_blocks, args.num_heads, args.channels, args.num_refinement, args.expansion_factor).to(device)
-    if args.backend == "nccl":
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank])
-    else:
-        model = torch.nn.parallel.DistributedDataParallel(model)
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[rank] if args.backend == "nccl" else None)
+    print(f"[Rank {rank}] Model initialized. Total parameters: {sum(p.numel() for p in model.parameters())}")
 
+    print(f"[Rank {rank}] Loading test dataset...")
     test_dataset = RainDataset(args.data_path, args.data_name, 'test')
     test_sampler = DistributedSampler(test_dataset, num_replicas=world_size, rank=rank, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=1, sampler=test_sampler, num_workers=args.workers, pin_memory=True)
+    print(f"[Rank {rank}] Test dataset loaded.")
 
     results, best_psnr, best_ssim = {'PSNR': [], 'SSIM': [], 'Loss': []}, 0.0, 0.0
 
     if args.model_file:
+        print(f"[Rank {rank}] Loading pre-trained model from {args.model_file}")
         map_location = {'cuda:%d' % 0: 'cuda:%d' % rank} if args.backend == "nccl" else "cpu"
         model.load_state_dict(torch.load(args.model_file, map_location=map_location))
         save_loop(model, test_loader, 1, results, best_psnr, best_ssim, args, rank, device)
     else:
+        print(f"[Rank {rank}] Starting training loop.")
         optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
         lr_scheduler = CosineAnnealingLR(optimizer, T_max=args.num_iter, eta_min=1e-6)
 
@@ -88,10 +98,13 @@ def main_worker(rank, world_size, args):
                 end_iter = args.milestone[i] if i < len(args.milestone) else args.num_iter
                 start_iter = args.milestone[i - 1] if i > 0 else 0
                 length = args.batch_size[i] * (end_iter - start_iter)
+                print(f"[Rank {rank}] Loading train dataset for stage {i}...")
                 train_dataset = RainDataset(args.data_path, args.data_name, 'train', args.patch_size[i], length)
                 train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
                 train_loader = iter(DataLoader(train_dataset, args.batch_size[i], sampler=train_sampler, num_workers=args.workers, pin_memory=True))
+                print(f"[Rank {rank}] Train dataset loaded for stage {i}.")
                 i += 1
+
             model.train()
             rain, norain, name, h, w = next(train_loader)
             rain, norain = rain.to(device, non_blocking=True), norain.to(device, non_blocking=True)
@@ -112,12 +125,21 @@ def main_worker(rank, world_size, args):
                 results['Loss'].append('{:.3f}'.format(total_loss / total_num))
                 best_psnr, best_ssim = save_loop(model, test_loader, n_iter, results, best_psnr, best_ssim, args, rank, device)
 
+    print(f"[Rank {rank}] Training complete. Cleaning up DDP.")
     cleanup_ddp()
 
 def main():
     args = parse_args()
-    world_size = torch.cuda.device_count() if args.backend == "nccl" else torch.get_num_threads()
-    mp.spawn(main_worker, args=(world_size, args), nprocs=world_size)
+    rank = int(os.environ["RANK"])
+    world_size = int(os.environ["WORLD_SIZE"])
+
+    if args.backend == "nccl":
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
+    main_worker(rank, world_size, args)
+
 
 if __name__ == '__main__':
     main()
