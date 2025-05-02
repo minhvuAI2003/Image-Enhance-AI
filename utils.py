@@ -28,8 +28,8 @@ def parse_args():
     parser.add_argument('--expansion_factor', type=float, default=2.66, help='factor of channel expansion for GDFN')
     parser.add_argument('--num_refinement', type=int, default=4, help='number of channels for refinement stage')
     parser.add_argument('--num_iter', type=int, default=60000, help='iterations of training')
-    parser.add_argument('--batch_size', nargs='+', type=int, default=[64, 40, 32, 16, 8, 8],
-                        help='batch size of loading images for progressive learning')
+    parser.add_argument('--batch_size', nargs='+', type=int, default=[16, 10, 8, 4, 2, 2])
+
     parser.add_argument('--patch_size', nargs='+', type=int, default=[128, 160, 192, 256, 320, 384],
                         help='patch size of each image for progressive learning')
     parser.add_argument('--lr', type=float, default=0.0003, help='initial learning rate')
