@@ -1,4 +1,6 @@
 import os
+import random
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -12,6 +14,14 @@ import torch.multiprocessing as mp
 
 from model import Restormer
 from utils import parse_args, RainDataset, rgb_to_y, psnr, ssim
+
+def set_seed(seed, rank):
+    random.seed(seed + rank)
+    np.random.seed(seed + rank)
+    torch.manual_seed(seed + rank)
+    torch.cuda.manual_seed_all(seed + rank)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def setup_ddp(rank, world_size, backend):
     os.environ['RANK'] = str(rank)
@@ -65,6 +75,8 @@ def main_worker(rank, world_size, args):
     setup_ddp(rank, world_size, args.backend)
     print(f"[Rank {rank}] DDP setup done.")
 
+    set_seed(args.seed, rank)
+
     device = torch.device(f"cuda:{rank}" if args.backend == "nccl" else "cpu")
     print(f"[Rank {rank}] Using device {device}")
 
@@ -105,6 +117,8 @@ def main_worker(rank, world_size, args):
                 print(f"[Rank {rank}] Train dataset loaded for stage {i}.")
                 i += 1
 
+            train_sampler.set_epoch(n_iter)
+
             model.train()
             rain, norain, name, h, w = next(train_loader)
             rain, norain = rain.to(device, non_blocking=True), norain.to(device, non_blocking=True)
@@ -139,7 +153,6 @@ def main():
         torch.backends.cudnn.allow_tf32 = True
 
     main_worker(rank, world_size, args)
-
 
 if __name__ == '__main__':
     main()
