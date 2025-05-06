@@ -49,53 +49,53 @@ class MDTA(nn.Module):
 
 class MultiStreamTransformerBlock(nn.Module):
         def __init__(self, channels, num_heads, expansion_factor=2.66, res_scale=0.1, streams=2):
-        super(MultiStreamTransformerBlock, self).__init__()
-        
-        self.streams = nn.ModuleList([
-            MDTA(channels, num_heads) for _ in range(streams)
-        ])
-        
-        self.stream_weights = nn.Parameter(torch.ones(streams))  # learnable weights
+            super(MultiStreamTransformerBlock, self).__init__()
+            
+            self.streams = nn.ModuleList([
+                MDTA(channels, num_heads) for _ in range(streams)
+            ])
+            
+            self.stream_weights = nn.Parameter(torch.ones(streams))  # learnable weights
+    
+            self.norm1 = nn.LayerNorm(channels)
+            self.norm2 = nn.LayerNorm(channels)
+            self.ffn = GDFN(channels, expansion_factor)
+            self.res_scale = res_scale
 
-        self.norm1 = nn.LayerNorm(channels)
-        self.norm2 = nn.LayerNorm(channels)
-        self.ffn = GDFN(channels, expansion_factor)
-        self.res_scale = res_scale
-
-    def forward(self, x):
-        b, c, h, w = x.shape
-
-        # LayerNorm trước Attention
-        x_flat = x.permute(0, 2, 3, 1)  # (B, H, W, C)
-        x_norm1 = self.norm1(x_flat).permute(0, 3, 1, 2)  # (B, C, H, W)
-
-        outs = []
-        for stream in self.streams:
-            out = stream(x_norm1)
-            outs.append(out)
-
-        outs = torch.stack(outs, dim=0)  # (streams, B, C, H, W)
-
-        # Normalize stream weights
-        weights = F.softmax(self.stream_weights, dim=0)  # (streams,)
-
-        # Weighted sum các stream outputs
-        attn_out = (weights.view(-1, 1, 1, 1, 1) * outs).sum(dim=0)
-
-        # Residual Add sau Attention
-        x = x + attn_out * self.res_scale
-
-        # LayerNorm trước FFN
-        identity = x
-        x_flat = x.permute(0, 2, 3, 1)  # (B, H, W, C)
-        x_norm2 = self.norm2(x_flat).permute(0, 3, 1, 2)  # (B, C, H, W)
-
-        out = self.ffn(x_norm2)
-
-        # Residual Add sau FFN
-        x = identity + out * self.res_scale
-
-        return x
+        def forward(self, x):
+            b, c, h, w = x.shape
+    
+            # LayerNorm trước Attention
+            x_flat = x.permute(0, 2, 3, 1)  # (B, H, W, C)
+            x_norm1 = self.norm1(x_flat).permute(0, 3, 1, 2)  # (B, C, H, W)
+    
+            outs = []
+            for stream in self.streams:
+                out = stream(x_norm1)
+                outs.append(out)
+    
+            outs = torch.stack(outs, dim=0)  # (streams, B, C, H, W)
+    
+            # Normalize stream weights
+            weights = F.softmax(self.stream_weights, dim=0)  # (streams,)
+    
+            # Weighted sum các stream outputs
+            attn_out = (weights.view(-1, 1, 1, 1, 1) * outs).sum(dim=0)
+    
+            # Residual Add sau Attention
+            x = x + attn_out * self.res_scale
+    
+            # LayerNorm trước FFN
+            identity = x
+            x_flat = x.permute(0, 2, 3, 1)  # (B, H, W, C)
+            x_norm2 = self.norm2(x_flat).permute(0, 3, 1, 2)  # (B, C, H, W)
+    
+            out = self.ffn(x_norm2)
+    
+            # Residual Add sau FFN
+            x = identity + out * self.res_scale
+    
+            return x
 
 
 # Cross-Scale Attention Fusion
