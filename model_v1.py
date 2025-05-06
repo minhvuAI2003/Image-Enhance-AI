@@ -173,16 +173,16 @@ class Restormer(nn.Module):
         ])
         self.cross_scale_attn_bottleneck = CrossScaleAttentionFusion_1(channels[0])
 
-        self.decoders = nn.ModuleList([nn.Sequential(*[MultiStreamTransformerBlock(channels[2], num_heads[2], expansion_factor)
+        self.decoders = nn.ModuleList([nn.Sequential(*[TransformerBlock(channels[2], num_heads[2], expansion_factor)
                                                        for _ in range(num_blocks[2])])])
-        self.decoders.append(nn.Sequential(*[MultiStreamTransformerBlock(channels[1], num_heads[1], expansion_factor)
+        self.decoders.append(nn.Sequential(*[TransformerBlock(channels[1], num_heads[1], expansion_factor)
                                              for _ in range(num_blocks[1])]))
         # the channel of last one is not change
-        self.decoders.append(nn.Sequential(*[MultiStreamTransformerBlock(channels[1], num_heads[0], expansion_factor)
+        self.decoders.append(nn.Sequential(*[TransformerBlock(channels[1], num_heads[0], expansion_factor)
                                              for _ in range(num_blocks[0])]))
 
         self.refinement = nn.Sequential(
-    *[MultiStreamTransformerBlock(channels[1], num_heads[0], expansion_factor, res_scale) for _ in range(int(num_refinement))]
+    *[TransformerBlock(channels[1], num_heads[0], expansion_factor) for _ in range(int(num_refinement))]
 )
 
 
