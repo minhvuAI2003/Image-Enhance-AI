@@ -187,36 +187,41 @@ class Restormer(nn.Module):
 
 
         self.output = nn.Conv2d(channels[1], 3, 3, padding=1)
+        self.fuse_proj = nn.ModuleList([
+    nn.Conv2d(ch, ch, kernel_size=1, bias=False) for ch in channels[1:]
+])
+
 
     def forward(self, x):
         fea = self.embed(x)
 
-        out_enc1 = self.encoders[0](fo)  # Linear first block
+        out_enc1 = self.encoders[0](fea)  # Linear first block
 
         # Second level with two streams
         in2 = self.downs[0](out_enc1)
         s1_out2 = self.encoders[1][0](in2)
         s2_out2 = self.encoders[1][1](in2)
-        out_enc2 = (s1_out2 + s2_out2 + in2) / 3  # Multi-stream + skip
+
+        out_enc2 = self.fuse_proj[0](s1_out2 + s2_out2 + in2) / 3  # Multi-stream + skip
         
         # Third level with two streams
         in3 = self.downs[1](out_enc2)
         s1_out3 = self.encoders[2][0](in3)
         s2_out3 = self.encoders[2][1](in3)
-        out_enc3 = (s1_out3 + s2_out3 + in3) / 3
+        out_enc3 = self.fuse_proj[1](s1_out3 + s2_out3 + in3) / 3
         
         # Fourth level with two streams
         in4 = self.downs[2](out_enc3)
         s1_out4 = self.encoders[3][0](in4)
         s2_out4 = self.encoders[3][1](in4)
-        out_enc4 = (s1_out4 + s2_out4 + in4) / 3
+        out_enc4 = self.fuse_proj[2](s1_out4 + s2_out4 + in4) / 3
 
 
-        out_dec3 = self.decoders[0](self.cross_scale_attn[0](self.ups[0](out_enc4),out_enc3))
+        out_dec3 = self.decoders[0](self.cross_scale_attn[0](out_enc3,self.ups[0](out_enc4)))
         # print(out_dec3.shape)
-        out_dec2 = self.decoders[1](self.cross_scale_attn[1](self.ups[1](out_dec3),out_enc2))
+        out_dec2 = self.decoders[1](self.cross_scale_attn[1](out_enc2,self.ups[1](out_dec3)))
         # print(out_dec2.shape)
-        fd = self.decoders[2](self.cross_scale_attn_bottleneck(self.ups[2](out_dec2),out_enc1))
+        fd = self.decoders[2](self.cross_scale_attn_bottleneck(out_enc1,self.ups[2](out_dec2)))
 
         fr = self.refinement(fd)
         out = self.output(fr) + x
