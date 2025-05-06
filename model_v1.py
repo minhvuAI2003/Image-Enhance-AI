@@ -47,96 +47,79 @@ class MDTA(nn.Module):
         out = self.project_out(out)
         return out
 
-class MultiStreamTransformerBlock(nn.Module):
-        def __init__(self, channels, num_heads, expansion_factor=2.66, res_scale=0.1, streams=2):
-            super(MultiStreamTransformerBlock, self).__init__()
-            
-            self.streams = nn.ModuleList([
-                MDTA(channels, num_heads) for _ in range(streams)
-            ])
-            
-            self.stream_weights = nn.Parameter(torch.ones(streams))  # learnable weights
-    
-            self.norm1 = nn.LayerNorm(channels)
-            self.norm2 = nn.LayerNorm(channels)
-            self.ffn = GDFN(channels, expansion_factor)
-            self.res_scale = res_scale
+class TransformerBlock(nn.Module):
+    def __init__(self, channels, num_heads, expansion_factor):
+        super(TransformerBlock, self).__init__()
 
-        def forward(self, x):
-            b, c, h, w = x.shape
-    
-            # LayerNorm trước Attention
-            x_flat = x.permute(0, 2, 3, 1)  # (B, H, W, C)
-            x_norm1 = self.norm1(x_flat).permute(0, 3, 1, 2)  # (B, C, H, W)
-    
-            outs = []
-            for stream in self.streams:
-                out = stream(x_norm1)
-                outs.append(out)
-    
-            outs = torch.stack(outs, dim=0)  # (streams, B, C, H, W)
-    
-            # Normalize stream weights
-            weights = F.softmax(self.stream_weights, dim=0)  # (streams,)
-    
-            # Weighted sum các stream outputs
-            attn_out = (weights.view(-1, 1, 1, 1, 1) * outs).sum(dim=0)
-    
-            # Residual Add sau Attention
-            x = x + attn_out * self.res_scale
-    
-            # LayerNorm trước FFN
-            identity = x
-            x_flat = x.permute(0, 2, 3, 1)  # (B, H, W, C)
-            x_norm2 = self.norm2(x_flat).permute(0, 3, 1, 2)  # (B, C, H, W)
-    
-            out = self.ffn(x_norm2)
-    
-            # Residual Add sau FFN
-            x = identity + out * self.res_scale
-    
-            return x
+        self.norm1 = nn.LayerNorm(channels)
+        self.attn = MDTA(channels, num_heads)
+        self.norm2 = nn.LayerNorm(channels)
+        self.ffn = GDFN(channels, expansion_factor)
+
+    def forward(self, x):
+        b, c, h, w = x.shape
+        x = x + self.attn(self.norm1(x.reshape(b, c, -1).transpose(-2, -1).contiguous()).transpose(-2, -1)
+                          .contiguous().reshape(b, c, h, w))
+        x = x + self.ffn(self.norm2(x.reshape(b, c, -1).transpose(-2, -1).contiguous()).transpose(-2, -1)
+                         .contiguous().reshape(b, c, h, w))
+        return x
 
 
 # Cross-Scale Attention Fusion
 class CrossScaleAttentionFusion(nn.Module):
-    def __init__(self, channels):
-        super(CrossScaleAttentionFusion, self).__init__()
-        self.encoder_proj = nn.Conv2d(channels, channels, 1, bias=False)
-        self.decoder_proj = nn.Conv2d(channels, channels, 1, bias=False)
-        self.attn = nn.Sequential(
-            nn.Conv2d(channels * 2, channels, 1, bias=False),
-            nn.Sigmoid()
-        )
-        self.output_proj = nn.Conv2d(channels, channels, 1, bias=False)
+    def __init__(self, dim, num_heads):
+        super().__init__()
+        self.norm_q = nn.LayerNorm(dim)
+        self.norm_kv = nn.LayerNorm(dim)
+        self.q_proj = nn.Linear(dim, dim)
+        self.k_proj = nn.Linear(dim, dim)
+        self.v_proj = nn.Linear(dim, dim)
+        self.out_proj = nn.Linear(dim, dim)
+        self.num_heads = num_heads
+        self.scale = (dim // num_heads) ** -0.5
 
-    def forward(self, encoder_feat, decoder_feat):
-        enc = self.encoder_proj(encoder_feat)
-        dec = self.decoder_proj(decoder_feat)
-        fused = torch.cat([enc, dec], dim=1)
-        attn_map = self.attn(fused)
-        out = dec + enc * attn_map
-        return self.output_proj(out)
-class CrossScaleAttentionFusion_1(nn.Module):
-    def __init__(self, channels):
-        super(CrossScaleAttentionFusion_1, self).__init__()
-        self.encoder_proj = nn.Conv2d(channels, channels, 1, bias=False)
-        self.decoder_proj = nn.Conv2d(channels, channels, 1, bias=False)
-        self.attn = nn.Sequential(
-            nn.Conv2d(channels * 2, channels, 1, bias=False),
-            nn.Sigmoid()
-        )
-        self.output_proj = nn.Conv2d(channels, channels*2, 1, bias=False)
+    def forward(self, q_feat, kv_feat):
+        B, C, H, W = q_feat.shape
+        q = self.q_proj(self.norm_q(q_feat.flatten(2).transpose(1, 2)))  # [B, HW, C]
+        k = self.k_proj(self.norm_kv(kv_feat.flatten(2).transpose(1, 2)))
+        v = self.v_proj(self.norm_kv(kv_feat.flatten(2).transpose(1, 2)))
 
-    def forward(self, encoder_feat, decoder_feat):
-        enc = self.encoder_proj(encoder_feat)
-        dec = self.decoder_proj(decoder_feat)
-        fused = torch.cat([enc, dec], dim=1)
-        attn_map = self.attn(fused)
-        out = dec + enc * attn_map
-        out = self.output_proj(out)  # NEW: nhân đôi channel sau attention fusion
+        q = q.view(B, -1, self.num_heads, C // self.num_heads).transpose(1, 2)
+        k = k.view(B, -1, self.num_heads, C // self.num_heads).transpose(1, 2)
+        v = v.view(B, -1, self.num_heads, C // self.num_heads).transpose(1, 2)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        out = (attn @ v).transpose(1, 2).reshape(B, -1, C)
+        out = self.out_proj(out).transpose(1, 2).reshape(B, C, H, W)
         return out
+class CrossScaleAttentionFusion_1(nn.Module):
+    def __init__(self, dim, num_heads):
+        super().__init__()
+        self.norm_q = nn.LayerNorm(dim)
+        self.norm_kv = nn.LayerNorm(dim)
+        self.q_proj = nn.Linear(dim, dim)
+        self.k_proj = nn.Linear(dim, dim)
+        self.v_proj = nn.Linear(dim, dim)
+        self.out_proj = nn.Linear(dim, dim*2)
+        self.num_heads = num_heads
+        self.scale = (dim // num_heads) ** -0.5
 
+    def forward(self, q_feat, kv_feat):
+        B, C, H, W = q_feat.shape
+        q = self.q_proj(self.norm_q(q_feat.flatten(2).transpose(1, 2)))  # [B, HW, C]
+        k = self.k_proj(self.norm_kv(kv_feat.flatten(2).transpose(1, 2)))
+        v = self.v_proj(self.norm_kv(kv_feat.flatten(2).transpose(1, 2)))
+
+        q = q.view(B, -1, self.num_heads, C // self.num_heads).transpose(1, 2)
+        k = k.view(B, -1, self.num_heads, C // self.num_heads).transpose(1, 2)
+        v = v.view(B, -1, self.num_heads, C // self.num_heads).transpose(1, 2)
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        out = (attn @ v).transpose(1, 2).reshape(B, -1, C)
+        out = self.out_proj(out).transpose(1, 2).reshape(B, C, H, W)
+        return out
 
 # DownSample and UpSample
 class DownSample(nn.Module):
@@ -165,10 +148,19 @@ class Restormer(nn.Module):
         super(Restormer, self).__init__()
         self.embed = nn.Conv2d(3, channels[0], kernel_size=3, padding=1, bias=False)
 
-        self.encoders = nn.ModuleList([
-            nn.Sequential(*[MultiStreamTransformerBlock(c, h, expansion_factor, res_scale) for _ in range(b)])
-            for c, h, b in zip(channels, num_heads, num_blocks)
+        self.encoders = nn.ModuleList()
+        for i, (num_tb, num_ah, num_ch) in enumerate(zip(num_blocks, num_heads, channels)):
+            if i == 0:
+        # First encoder level: normal linear path
+                self.encoders.append(nn.Sequential(*[TransformerBlock(num_ch, num_ah, expansion_factor) for _ in range(num_tb)]))
+            else:
+        # Multi-stream: create 2 streams, 2 blocks each
+                stream_blocks = nn.ModuleList([
+            nn.Sequential(*[TransformerBlock(num_ch, num_ah, expansion_factor) for _ in range(num_tb // 2)]),
+            nn.Sequential(*[TransformerBlock(num_ch, num_ah, expansion_factor) for _ in range(num_tb // 2)])
         ])
+                self.encoders.append(stream_blocks)
+
 
         self.downs = nn.ModuleList([DownSample(c) for c in channels[:-1]])
 
@@ -199,10 +191,26 @@ class Restormer(nn.Module):
     def forward(self, x):
         fea = self.embed(x)
 
-        out_enc1 = self.encoders[0](fea)
-        out_enc2 = self.encoders[1](self.downs[0](out_enc1))
-        out_enc3 = self.encoders[2](self.downs[1](out_enc2))
-        out_enc4 = self.encoders[3](self.downs[2](out_enc3))
+        out_enc1 = self.encoders[0](fo)  # Linear first block
+
+        # Second level with two streams
+        in2 = self.downs[0](out_enc1)
+        s1_out2 = self.encoders[1][0](in2)
+        s2_out2 = self.encoders[1][1](in2)
+        out_enc2 = (s1_out2 + s2_out2 + in2) / 3  # Multi-stream + skip
+        
+        # Third level with two streams
+        in3 = self.downs[1](out_enc2)
+        s1_out3 = self.encoders[2][0](in3)
+        s2_out3 = self.encoders[2][1](in3)
+        out_enc3 = (s1_out3 + s2_out3 + in3) / 3
+        
+        # Fourth level with two streams
+        in4 = self.downs[2](out_enc3)
+        s1_out4 = self.encoders[3][0](in4)
+        s2_out4 = self.encoders[3][1](in4)
+        out_enc4 = (s1_out4 + s2_out4 + in4) / 3
+
 
         out_dec3 = self.decoders[0](self.cross_scale_attn[0](out_enc3, self.ups[0](out_enc4)))
         # print(out_dec3.shape)
