@@ -65,6 +65,7 @@ class Config(object):
         self.model_file = args.model_file
         self.task_type = args.task_type
         self.backend=args.backend
+        self.seed=args.seed
 
 
 def init_args(args):
