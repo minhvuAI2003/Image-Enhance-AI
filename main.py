@@ -9,7 +9,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from model import Restormer
+from model_v1 import Restormer
 from utils import parse_args,GaussianDenoisingDataset, rgb_to_y, psnr, ssim,RainDataset
 
 
