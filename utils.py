@@ -23,7 +23,7 @@ def parse_args():
                         help='number of transformer blocks for each level')
     parser.add_argument('--num_heads', nargs='+', type=int, default=[2, 4, 8, 16],
                         help='number of attention heads for each level')
-    parser.add_argument('--channels', nargs='+', type=int, default=[48, 96, 192, 320],
+    parser.add_argument('--channels', nargs='+', type=int, default=[48, 96, 192, 384],
                         help='number of channels for each level')
     parser.add_argument('--expansion_factor', type=float, default=2.66, help='factor of channel expansion for GDFN')
     parser.add_argument('--num_refinement', type=int, default=2, help='number of channels for refinement stage')
@@ -44,6 +44,7 @@ def parse_args():
     parser.add_argument('--backend', type=str, default='nccl', choices=['nccl', 'gloo', 'mpi'], help='Distributed backend')
 
     return init_args(parser.parse_args())
+
 
 
 class Config(object):
