@@ -19,14 +19,14 @@ def parse_args():
     parser.add_argument('--data_path', type=str, default='/home/data')
     parser.add_argument('--data_name', type=str, default='rain100L')
     parser.add_argument('--save_path', type=str, default='result_gauss')
-    parser.add_argument('--num_blocks', nargs='+', type=int, default=[4, 6, 6, 8],
+    parser.add_argument('--num_blocks', nargs='+', type=int, default=[3, 4, 4, 6],
                         help='number of transformer blocks for each level')
-    parser.add_argument('--num_heads', nargs='+', type=int, default=[1, 2, 4, 8],
+    parser.add_argument('--num_heads', nargs='+', type=int, default=[2, 4, 8, 16],
                         help='number of attention heads for each level')
-    parser.add_argument('--channels', nargs='+', type=int, default=[48, 96, 192, 384],
+    parser.add_argument('--channels', nargs='+', type=int, default=[48, 96, 192, 320],
                         help='number of channels for each level')
     parser.add_argument('--expansion_factor', type=float, default=2.66, help='factor of channel expansion for GDFN')
-    parser.add_argument('--num_refinement', type=int, default=4, help='number of channels for refinement stage')
+    parser.add_argument('--num_refinement', type=int, default=2, help='number of channels for refinement stage')
     parser.add_argument('--num_iter', type=int, default=60000, help='iterations of training')
     parser.add_argument('--batch_size', nargs='+', type=int, default=[16, 10, 8, 4, 2, 2])
 
@@ -178,7 +178,17 @@ class GaussianDenoisingDataset(Dataset):
 class RainDataset(Dataset):
     def __init__(self, data_path, data_name, data_type, patch_size=None, length=None):
         super().__init__()
+       
+
         self.data_name, self.data_type, self.patch_size = data_name, data_type, patch_size
+        if self.data_type == 'train':
+            self.augment = T_func.Compose([
+                T_func.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                T_func.GaussianBlur(kernel_size=3),
+                T_func.RandomPerspective(distortion_scale=0.5, p=0.5)
+            ])
+        else:
+            self.augment = None
         self.rain_images = sorted(glob.glob('{}/{}/{}/input/*.png'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/input/*.jpg'.format(data_path, data_name, data_type)))
         self.norain_images = sorted(glob.glob('{}/{}/{}/target/*.png'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/target/*.jpg'.format(data_path, data_name, data_type)))
         self.num = len(self.rain_images)
@@ -195,11 +205,16 @@ class RainDataset(Dataset):
 
         if self.data_type == 'train':
             # make sure the image could be cropped
-            rain = pad_image_needed(rain, (self.patch_size, self.patch_size))
-            norain = pad_image_needed(norain, (self.patch_size, self.patch_size))
+
             i, j, th, tw = RandomCrop.get_params(rain, (self.patch_size, self.patch_size))
             rain = T.crop(rain, i, j, th, tw)
             norain = T.crop(norain, i, j, th, tw)
+            if self.augment:
+                seed = random.randint(0, 9999)
+                random.seed(seed)
+                rain = self.augment(rain)
+                random.seed(seed)
+                norain = self.augment(norain)
             if torch.rand(1) < 0.5:
                 rain = T.hflip(rain)
                 norain = T.hflip(norain)
