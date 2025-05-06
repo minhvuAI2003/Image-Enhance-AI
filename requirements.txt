@@ -1,5 +1,4 @@
-pandas
-gdown
-natsort
-joblib
-pdb
+pandas>=1.3
+gdown>=4.7
+natsort>=8.0
+joblib>=1.2
