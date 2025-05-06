@@ -212,11 +212,11 @@ class Restormer(nn.Module):
         out_enc4 = (s1_out4 + s2_out4 + in4) / 3
 
 
-        out_dec3 = self.decoders[0](self.cross_scale_attn[0](out_enc3, self.ups[0](out_enc4)))
+        out_dec3 = self.decoders[0](self.cross_scale_attn[0](self.ups[0](out_enc4),out_enc3))
         # print(out_dec3.shape)
-        out_dec2 = self.decoders[1](self.cross_scale_attn[1](out_enc2, self.ups[1](out_dec3)))
+        out_dec2 = self.decoders[1](self.cross_scale_attn[1](self.ups[1](out_dec3),out_enc2))
         # print(out_dec2.shape)
-        fd = self.decoders[2](self.cross_scale_attn_bottleneck(out_enc1, self.ups[2](out_dec2)))
+        fd = self.decoders[2](self.cross_scale_attn_bottleneck(self.ups[2](out_dec2),out_enc1))
 
         fr = self.refinement(fd)
         out = self.output(fr) + x
