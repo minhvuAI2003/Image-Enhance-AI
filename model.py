@@ -58,7 +58,6 @@ class TransformerBlock(nn.Module):
                           .contiguous().reshape(b, c, h, w))
         x = x + self.ffn(self.norm2(x.reshape(b, c, -1).transpose(-2, -1).contiguous()).transpose(-2, -1)
                          .contiguous().reshape(b, c, h, w))
-        return x
 
 
 class DownSample(nn.Module):
