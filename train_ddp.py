@@ -1,4 +1,4 @@
-import os
+iimport os
 import random
 import numpy as np
 import pandas as pd
@@ -14,10 +14,6 @@ import torch.multiprocessing as mp
 
 from model import Restormer
 from utils import parse_args, RainDataset, rgb_to_y, psnr, ssim
-def frequency_loss(pred, target):
-    pred_fft = torch.fft.fft2(pred, norm='ortho')
-    target_fft = torch.fft.fft2(target, norm='ortho')
-    return torch.mean(torch.abs(torch.abs(pred_fft) - torch.abs(target_fft)))
 
 def set_seed(seed, rank):
     random.seed(seed + rank)
@@ -127,10 +123,7 @@ def main_worker(rank, world_size, args):
             rain, norain, name, h, w = next(train_loader)
             rain, norain = rain.to(device, non_blocking=True), norain.to(device, non_blocking=True)
             out = model(rain)
-            pixel_loss = F.l1_loss(out, norain)
-            freq_loss = frequency_loss(out, norain)
-            loss = pixel_loss + 0.1 * freq_loss
-
+            loss = F.l1_loss(out, norain)
 
             optimizer.zero_grad()
             loss.backward()
