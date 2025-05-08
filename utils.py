@@ -27,13 +27,13 @@ def parse_args():
                         help='number of channels for each level')
     parser.add_argument('--expansion_factor', type=float, default=2.66, help='factor of channel expansion for GDFN')
     parser.add_argument('--num_refinement', type=int, default=4, help='number of channels for refinement stage')
-    parser.add_argument('--num_iter', type=int, default=60000, help='iterations of training')
+    parser.add_argument('--num_iter', type=int, default=30000, help='iterations of training')
     parser.add_argument('--batch_size', nargs='+', type=int, default=[16, 10, 8, 4, 2, 2])
 
     parser.add_argument('--patch_size', nargs='+', type=int, default=[128, 160, 192, 256, 320, 384],
                         help='patch size of each image for progressive learning')
     parser.add_argument('--lr', type=float, default=0.0003, help='initial learning rate')
-    parser.add_argument('--milestone', nargs='+', type=int, default=[18400, 31200, 40800, 48000, 55200],
+    parser.add_argument('--milestone', nargs='+', type=int, default=[92000, 156000, 204000, 240000, 276000],
                         help='when to change patch size and batch size')
     parser.add_argument('--workers', type=int, default=8, help='number of data loading workers')
     parser.add_argument('--seed', type=int, default=1, help='random seed (-1 for no manual seed)')
