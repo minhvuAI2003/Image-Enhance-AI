@@ -111,7 +111,7 @@ def main_worker(rank, world_size, args):
                 start_iter = args.milestone[i - 1] if i > 0 else 0
                 length = args.batch_size[i] * (end_iter - start_iter)
                 print(f"[Rank {rank}] Loading train dataset for stage {i}...")
-                train_dataset = RainDataset(args.data_path, args.data_name, 'train', args.patch_size[i], length)
+                train_dataset = RainDataset(args.data_path, args.data_name, 'train', args.patch_size[i], length*world_size)
                 train_sampler = DistributedSampler(train_dataset, num_replicas=world_size, rank=rank, shuffle=True)
                 train_loader = iter(DataLoader(train_dataset, args.batch_size[i], sampler=train_sampler, num_workers=args.workers, pin_memory=True))
                 print(f"[Rank {rank}] Train dataset loaded for stage {i}.")
