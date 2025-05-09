@@ -86,7 +86,7 @@ def main_worker(rank, world_size, args):
     print(f"[Rank {rank}] Model initialized. Total parameters: {sum(p.numel() for p in model.parameters())}")
 
     print(f"[Rank {rank}] Loading test dataset...")
-    if args.task_type!='gaussian denoise':
+    if args.task_type!='gaussian_denoise':
         test_dataset = RainDataset(args.task_type,args.data_path, args.data_name, 'test')
     else:
         test_dataset = GaussianDenoisingDataset(args.data_path, args.data_name, 'test',(25,25))
