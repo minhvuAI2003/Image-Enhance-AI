@@ -98,9 +98,9 @@ class GaussianDenoisingDataset(Dataset):
         super().__init__()
         self.data_name, self.data_type, self.patch_size = data_name, data_type, patch_size
         if self.data_type == 'train':
-          self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.png'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/DFWB/*.jpg'.format(data_path, data_name, data_type)))  # Ground Truth images
+          self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
         if self.data_type == 'test':
-          self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.png'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/CBSD68/*.jpg'.format(data_path, data_name, data_type)))  # Ground Truth images
+          self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
 
         self.num = len(self.gt_images)
         self.sample_num = length if data_type == 'train' else self.num
