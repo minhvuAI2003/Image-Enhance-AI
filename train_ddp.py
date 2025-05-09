@@ -115,7 +115,7 @@ def main_worker(rank, world_size, args):
                 start_iter = args.milestone[i - 1] if i > 0 else 0
                 length = args.batch_size[i] * (end_iter - start_iter)
                 print(f"[Rank {rank}] Loading train dataset for stage {i}...")
-                if args.task_type!='gaussian denoise':
+                if args.task_type!='gaussian_denoise':
                     train_dataset = RainDataset(args.task_type,args.data_path, args.data_name, 'train', args.patch_size[i], length*world_size)
                 else:
                     train_dataset = GaussianDenoisingDataset(args.data_path, args.data_name, 'train', args.patch_size[i], length*world_size)
