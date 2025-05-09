@@ -2,7 +2,7 @@ import argparse
 import glob
 import os
 import random
-
+import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -84,33 +84,30 @@ def init_args(args):
 
 
 def pad_image_needed(img, size):
-    width, height = T.get_image_size(img)
-    if width < size[1]:
-        img = T.pad(img, [size[1] - width, 0], padding_mode='reflect')
-    if height < size[0]:
-        img = T.pad(img, [0, size[0] - height], padding_mode='reflect')
-    return img
+    
+    # Chuyển từ tensor sang numpy array
+    if torch.is_tensor(img):
+        img = img.permute(1, 2, 0).numpy()  # Chuyển từ [C,H,W] sang [H,W,C]
+    
+    h, w = img.shape[:2]
+    h_pad = max(0, size[0] - h)
+    w_pad = max(0, size[1] - w)
+    
+    if h_pad == 0 and w_pad == 0:
+        return torch.from_numpy(img).permute(2, 0, 1)  # Chuyển lại về tensor [C,H,W]
+    
+    # Pad ảnh
+    img = cv2.copyMakeBorder(img, 0, h_pad, 0, w_pad, cv2.BORDER_REFLECT)
+    
+    # Xử lý ảnh grayscale
+    if img.ndim == 2:
+        img = np.expand_dims(img, axis=2)
+    
+    # Chuyển lại về tensor
+    return torch.from_numpy(img).permute(2, 0, 1)  # Chuyển từ [H,W,C] sang [C,H,W]
 
 from torchvision.transforms import ToTensor  # Sửa đây để import đúng ToTensor
 
-import glob
-import os
-import random
-import numpy as np
-import torch
-import torch.nn.functional as F
-import torchvision.transforms.functional as T
-from PIL import Image
-from torch.utils.data import Dataset
-from torchvision.transforms import RandomCrop, ToTensor
-
-def pad_image_needed(img, size):
-    width, height = T.get_image_size(img)
-    if width < size[1]:
-        img = T.pad(img, [size[1] - width, 0], padding_mode='reflect')
-    if height < size[0]:
-        img = T.pad(img, [0, size[0] - height], padding_mode='reflect')
-    return img
 
 def rgb_to_y(x):
     rgb_to_grey = torch.tensor([0.256789, 0.504129, 0.097906], dtype=x.dtype, device=x.device).view(1, -1, 1, 1)
