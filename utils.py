@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=1, help='random seed (-1 for no manual seed)')
     # model_file is None means training stage, else means testing stage
     parser.add_argument('--model_file', type=str, default=None, help='path of pre-trained model file')
-    parser.add_argument('--task_type', type=str, default='denoising', choices=['denoising', 'rain'], 
+    parser.add_argument('--task_type', type=str, default='denoising', 
                         help="Select task type: 'denoising' for Gaussian denoising or 'rain' for rain removal")
     parser.add_argument('--backend', type=str, default='nccl', choices=['nccl', 'gloo', 'mpi'], help='Distributed backend')
 
@@ -98,9 +98,9 @@ class GaussianDenoisingDataset(Dataset):
         super().__init__()
         self.data_name, self.data_type, self.patch_size = data_name, data_type, patch_size
         if self.data_type == 'train':
-          self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.png'.format(data_path, data_name, data_type)))  # Ground Truth images
+          self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.png'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/DFWB/*.jpg'.format(data_path, data_name, data_type)))  # Ground Truth images
         if self.data_type == 'test':
-          self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.png'.format(data_path, data_name, data_type)))  # Ground Truth images
+          self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.png'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/CBSD68/*.jpg'.format(data_path, data_name, data_type)))  # Ground Truth images
 
         self.num = len(self.gt_images)
         self.sample_num = length if data_type == 'train' else self.num
@@ -135,10 +135,10 @@ class GaussianDenoisingDataset(Dataset):
             if random.random() < 0.5:
                 gt = T.vflip(gt)
                 lq = T.vflip(lq)
-            if self.lq_save_path:
-                lq_image = T_func.ToPILImage()(lq)  # Convert tensor back to PIL Image
-                lq_image_name = os.path.join(self.lq_save_path, f"lq_{os.path.basename(self.gt_images[idx % self.num])}.png")
-                lq_image.save(lq_image_name)  # Save the LQ image
+            # if self.lq_save_path:
+            #     lq_image = T_func.ToPILImage()(lq)  # Convert tensor back to PIL Image
+            #     lq_image_name = os.path.join(self.lq_save_path, f"lq_{os.path.basename(self.gt_images[idx % self.num])}.png")
+            #     lq_image.save(lq_image_name)  # Save the LQ image
         else:
             # For validation/test, add noise and pad image
             new_h, new_w = ((h + 8) // 8) * 8, ((w + 8) // 8) * 8
@@ -148,10 +148,10 @@ class GaussianDenoisingDataset(Dataset):
 
             lq = gt + np.random.normal(0, self.sigma_range[0] / 255.0, gt.shape)
             lq = lq.clone().detach().to(dtype=gt.dtype)
-            if self.lq_save_path:
-                lq_image = T_func.ToPILImage()(lq)  # Convert tensor back to PIL Image
-                lq_image_name = os.path.join(self.lq_save_path, f"lq_{os.path.basename(self.gt_images[idx % self.num])}.png")
-                lq_image.save(lq_image_name)  # Save the LQ image
+            # if self.lq_save_path:
+            #     lq_image = T_func.ToPILImage()(lq)  # Convert tensor back to PIL Image
+            #     lq_image_name = os.path.join(self.lq_save_path, f"lq_{os.path.basename(self.gt_images[idx % self.num])}.png")
+            #     lq_image.save(lq_image_name)  # Save the LQ image
 
 
         # Extract the image name for future use
@@ -176,11 +176,41 @@ class GaussianDenoisingDataset(Dataset):
 
 
 class RainDataset(Dataset):
-    def __init__(self, data_path, data_name, data_type, patch_size=None, length=None):
+    def __init__(self,task, data_path, data_name, data_type, patch_size=None, length=None):
         super().__init__()
         self.data_name, self.data_type, self.patch_size = data_name, data_type, patch_size
-        self.rain_images = sorted(glob.glob('{}/{}/{}/input/*.png'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/input/*.jpg'.format(data_path, data_name, data_type)))
-        self.norain_images = sorted(glob.glob('{}/{}/{}/target/*.png'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/target/*.jpg'.format(data_path, data_name, data_type)))
+        if task == 'derain':
+            if data_type == 'train':
+                self.rain_images = sorted(glob.glob('{}/{}/{}/Rain13K/input/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/Rain13K/target/*.*'.format(data_path, data_name, data_type)))
+            else:
+                self.rain_images = sorted(glob.glob('{}/{}/{}/Rain100L/input/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/Rain100L/target/*.*'.format(data_path, data_name, data_type)))
+
+        if task == 'real denoise':
+            if data_type == 'train':
+                self.rain_images = sorted(glob.glob('{}/{}/{}/SIDD/input_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/SIDD/target_crops/*.*'.format(data_path, data_name, data_type)))
+            else:
+                self.rain_images = sorted(glob.glob('{}/{}/val/SIDD/input_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/val/SIDD/target_crops/*.*'.format(data_path, data_name, data_type)))
+        
+        if task == 'Single Image Deblur':
+            if data_type == 'train':
+                self.rain_images = sorted(glob.glob('{}/{}/{}/DPDD/inputC_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/DPDD/target_crops/*.*'.format(data_path, data_name, data_type)))
+            else:
+                self.rain_images = sorted(glob.glob('{}/{}/val/DPDD/inputC_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/val/DPDD/target_crops/*.*'.format(data_path, data_name, data_type)))
+        
+        if task == 'Motion Deblur':
+            if data_type == 'train':
+                self.rain_images = sorted(glob.glob('{}/{}/{}/GoPro/input_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/GoPro/target_crops/*.*'.format(data_path, data_name, data_type)))
+            else:
+                self.rain_images = sorted(glob.glob('{}/{}/val/GoPro/input_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/val/GoPro/target_crops/*.*'.format(data_path, data_name, data_type)))
+
         self.num = len(self.rain_images)
         self.sample_num = length if data_type == 'train' else self.num
 
