@@ -106,10 +106,10 @@ class GaussianDenoisingDataset(Dataset):
         self.sample_num = length if data_type == 'train' else self.num
         self.sigma_type = sigma_type
         self.sigma_range = sigma_range
-        self.lq_save_path = lq_save_path  # Path to save LQ images
+        # self.lq_save_path = lq_save_path  # Path to save LQ images
 
-        if self.lq_save_path and not os.path.exists(self.lq_save_path):
-            os.makedirs(self.lq_save_path)
+        # if self.lq_save_path and not os.path.exists(self.lq_save_path):
+        #     os.makedirs(self.lq_save_path)
     def __len__(self):
         return self.sample_num
 
