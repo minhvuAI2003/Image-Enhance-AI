@@ -4,7 +4,7 @@
 
 ## Download training and testing data for Defocus Deblurring task
 import os
-# import gdown
+import gdown
 import shutil
 
 import argparse
@@ -22,14 +22,14 @@ for data in args.data.split('-'):
     if data == 'train':
         print('DPDD Training Data!')
         os.makedirs(os.path.join('Datasets', 'Downloads', 'DPDD'), exist_ok=True)
-        # gdown.download(id=dpdd_train, output='Datasets/Downloads/DPDD/train.zip', quiet=False)
+        gdown.download(id=dpdd_train, output='Datasets/Downloads/DPDD/train.zip', quiet=False)
         os.system(f'gdrive download {dpdd_train} --path Datasets/Downloads/DPDD/')
         print('Extracting DPDD data...')
         shutil.unpack_archive('Datasets/Downloads/DPDD/train.zip', 'Datasets/Downloads/DPDD')
         os.remove('Datasets/Downloads/DPDD/train.zip')
 
         print('DPDD Validation Data!')
-        # gdown.download(id=dpdd_val, output='Datasets/Downloads/DPDD/val.zip', quiet=False)
+        gdown.download(id=dpdd_val, output='Datasets/Downloads/DPDD/val.zip', quiet=False)
         os.system(f'gdrive download {dpdd_val} --path Datasets/Downloads/DPDD/')
         print('Extracting DPDD val set...')
         shutil.unpack_archive('Datasets/Downloads/DPDD/val.zip', 'Datasets/Downloads/DPDD')
@@ -37,7 +37,7 @@ for data in args.data.split('-'):
 
     if data == 'test':
         print('DPDD Testing Data!')
-        # gdown.download(id=dpdd_test, output='Datasets/test.zip', quiet=False) 
+        gdown.download(id=dpdd_test, output='Datasets/test.zip', quiet=False) 
         os.system(f'gdrive download {dpdd_test} --path Datasets/')
         print('Extracting DPDD test set...')
         shutil.unpack_archive('Datasets/test.zip', 'Datasets')
@@ -46,4 +46,4 @@ for data in args.data.split('-'):
         shutil.move(os.path.join('Datasets', 'DPDD'), os.path.join('Datasets', 'test', 'DPDD'))
         os.remove('Datasets/test.zip')
 
-# print('Download completed successfully!')
+print('Download completed successfully!')
