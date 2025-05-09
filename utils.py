@@ -187,7 +187,7 @@ class RainDataset(Dataset):
                 self.rain_images = sorted(glob.glob('{}/{}/{}/Rain100L/input/*.*'.format(data_path, data_name, data_type)))
                 self.norain_images = sorted(glob.glob('{}/{}/{}/Rain100L/target/*.*'.format(data_path, data_name, data_type)))
 
-        if task == 'real denoise':
+        if task == 'real_denoise':
             if data_type == 'train':
                 self.rain_images = sorted(glob.glob('{}/{}/{}/SIDD/input_crops/*.*'.format(data_path, data_name, data_type)))
                 self.norain_images = sorted(glob.glob('{}/{}/{}/SIDD/target_crops/*.*'.format(data_path, data_name, data_type)))
@@ -195,7 +195,7 @@ class RainDataset(Dataset):
                 self.rain_images = sorted(glob.glob('{}/{}/val/SIDD/input_crops/*.*'.format(data_path, data_name, data_type)))
                 self.norain_images = sorted(glob.glob('{}/{}/val/SIDD/target_crops/*.*'.format(data_path, data_name, data_type)))
         
-        if task == 'Single Image Deblur':
+        if task == 'single_image_deblur':
             if data_type == 'train':
                 self.rain_images = sorted(glob.glob('{}/{}/{}/DPDD/inputC_crops/*.*'.format(data_path, data_name, data_type)))
                 self.norain_images = sorted(glob.glob('{}/{}/{}/DPDD/target_crops/*.*'.format(data_path, data_name, data_type)))
@@ -203,7 +203,7 @@ class RainDataset(Dataset):
                 self.rain_images = sorted(glob.glob('{}/{}/val/DPDD/inputC_crops/*.*'.format(data_path, data_name, data_type)))
                 self.norain_images = sorted(glob.glob('{}/{}/val/DPDD/target_crops/*.*'.format(data_path, data_name, data_type)))
         
-        if task == 'Motion Deblur':
+        if task == 'motion_deblur':
             if data_type == 'train':
                 self.rain_images = sorted(glob.glob('{}/{}/{}/GoPro/input_crops/*.*'.format(data_path, data_name, data_type)))
                 self.norain_images = sorted(glob.glob('{}/{}/{}/GoPro/target_crops/*.*'.format(data_path, data_name, data_type)))
