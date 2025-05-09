@@ -27,7 +27,7 @@ elif [ "$TASK_TYPE" == "single_image_deblur" ]; then
     python generate_patch_dpdd.py
 elif [ "$TASK_TYPE" == "gaussian_denoise" ]; then
     # Chạy code download dữ liệu cho gaussian denoise
-    python download_denoise.py --data train-test --dataset SIDD --noise real
+    python download_denoise.py --data train-test --dataset SIDD --noise gaussian
     # Chạy generate_patches_dfwb.py
     python generate_patches_dfwb.py
 else
