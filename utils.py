@@ -93,8 +93,31 @@ def pad_image_needed(img, size):
 
 from torchvision.transforms import ToTensor  # Sửa đây để import đúng ToTensor
 
+import glob
+import os
+import random
+import numpy as np
+import torch
+import torch.nn.functional as F
+import torchvision.transforms.functional as T
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision.transforms import RandomCrop, ToTensor
+
+def pad_image_needed(img, size):
+    width, height = T.get_image_size(img)
+    if width < size[1]:
+        img = T.pad(img, [size[1] - width, 0], padding_mode='reflect')
+    if height < size[0]:
+        img = T.pad(img, [0, size[0] - height], padding_mode='reflect')
+    return img
+
+def rgb_to_y(x):
+    rgb_to_grey = torch.tensor([0.256789, 0.504129, 0.097906], dtype=x.dtype, device=x.device).view(1, -1, 1, 1)
+    return torch.sum(x * rgb_to_grey, dim=1, keepdim=True).add(16.0)
+
 class GaussianDenoisingDataset(Dataset):
-    def __init__(self, data_path, data_name, data_type, patch_size=None, length=None, sigma_type='random', sigma_range=(0, 50),lq_save_path='lq_image'):
+    def __init__(self, data_path, data_name, data_type, patch_size=None, length=None, sigma_type='random', sigma_range=(0, 50), use_y_channel=False):
         super().__init__()
         self.data_name, self.data_type, self.patch_size = data_name, data_type, patch_size
         if self.data_type == 'train':
@@ -106,10 +129,8 @@ class GaussianDenoisingDataset(Dataset):
         self.sample_num = length if data_type == 'train' else self.num
         self.sigma_type = sigma_type
         self.sigma_range = sigma_range
-        # self.lq_save_path = lq_save_path  # Path to save LQ images
+        self.use_y_channel = use_y_channel  # New parameter to control Y channel conversion
 
-        # if self.lq_save_path and not os.path.exists(self.lq_save_path):
-        #     os.makedirs(self.lq_save_path)
     def __len__(self):
         return self.sample_num
 
@@ -135,10 +156,6 @@ class GaussianDenoisingDataset(Dataset):
             if random.random() < 0.5:
                 gt = T.vflip(gt)
                 lq = T.vflip(lq)
-            # if self.lq_save_path:
-            #     lq_image = T_func.ToPILImage()(lq)  # Convert tensor back to PIL Image
-            #     lq_image_name = os.path.join(self.lq_save_path, f"lq_{os.path.basename(self.gt_images[idx % self.num])}.png")
-            #     lq_image.save(lq_image_name)  # Save the LQ image
         else:
             # For validation/test, add noise and pad image
             new_h, new_w = ((h + 8) // 8) * 8, ((w + 8) // 8) * 8
@@ -148,11 +165,11 @@ class GaussianDenoisingDataset(Dataset):
 
             lq = gt + np.random.normal(0, self.sigma_range[0] / 255.0, gt.shape)
             lq = lq.clone().detach().to(dtype=gt.dtype)
-            # if self.lq_save_path:
-            #     lq_image = T_func.ToPILImage()(lq)  # Convert tensor back to PIL Image
-            #     lq_image_name = os.path.join(self.lq_save_path, f"lq_{os.path.basename(self.gt_images[idx % self.num])}.png")
-            #     lq_image.save(lq_image_name)  # Save the LQ image
 
+        # Convert to Y channel if requested
+        if self.use_y_channel:
+            gt = rgb_to_y(gt)
+            lq = rgb_to_y(lq)
 
         # Extract the image name for future use
         image_name = os.path.basename(self.gt_images[idx % self.num])
@@ -173,7 +190,6 @@ class GaussianDenoisingDataset(Dataset):
         noise_level = torch.FloatTensor([sigma_value])/255.0
         noise = torch.randn(image.size()).mul_(noise_level).float()
         return noise
-
 
 class RainDataset(Dataset):
     def __init__(self,task, data_path, data_name, data_type, patch_size=None, length=None):
