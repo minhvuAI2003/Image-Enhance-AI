@@ -5,6 +5,9 @@ TASK_TYPE=$1  # Lấy giá trị tham số đầu tiên, ví dụ: "derain"
 
 # Cài đặt các phụ thuộc từ requirements.txt
 pip install -r requirements.txt
+pip install opencv-python
+sudo apt update
+sudo apt install libgl1-mesa-glx
 
 # Kiểm tra giá trị của task và thực thi các lệnh tương ứng
 if [ "$TASK_TYPE" == "derain" ]; then
