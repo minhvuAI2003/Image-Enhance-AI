@@ -50,7 +50,7 @@ def test_loop(model, data_loader, num_iter, args, rank, device):
             count += 1
             if rank == 0:
                 save_path = '{}/{}/{}'.format(args.save_path, args.data_name, name[0])
-                # os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
                 Image.fromarray(out.squeeze(dim=0).permute(1, 2, 0).contiguous().cpu().numpy()).save(save_path)
                 test_bar.set_description('Test Iter: [{}/{}] PSNR: {:.2f} SSIM: {:.3f}'
                                          .format(num_iter, args.num_iter, total_psnr / count, total_ssim / count))
