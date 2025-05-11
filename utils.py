@@ -70,7 +70,7 @@ class Config(object):
 
 def init_args(args):
     if not os.path.exists(args.save_path):
-        os.makedirs(args.save_path)
+        os.makedirs(args.save_path, exist_ok=True)
 
     if args.seed >= 0:
         random.seed(args.seed)
