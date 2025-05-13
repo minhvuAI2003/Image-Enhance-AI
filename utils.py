@@ -45,6 +45,26 @@ def parse_args():
 
     return init_args(parser.parse_args())
 
+def get_default_args():
+    class Args:
+        data_path = '/home/data'
+        data_name = 'rain100L'
+        save_path = 'result_gauss'
+        num_blocks = [4, 6, 6, 8]
+        num_heads = [1, 2, 4, 8]
+        channels = [48, 96, 192, 384]
+        expansion_factor = 2.66
+        num_refinement = 4
+        num_iter = 30000
+        batch_size = [16, 10, 8, 4, 2, 2]
+        patch_size = [128, 160, 192, 256, 320, 384]
+        lr = 0.0003
+        milestone = [9200, 15600, 20400, 24000, 27600]
+        workers = 8
+        seed = -1
+        model_file = None
+        task_type = 'denoising'
+    return init_args(Args())
 
 class Config(object):
     def __init__(self, args):
@@ -64,7 +84,6 @@ class Config(object):
         self.workers = args.workers
         self.model_file = args.model_file
         self.task_type = args.task_type
-        self.backend=args.backend
         self.seed=args.seed
 
 
@@ -81,6 +100,9 @@ def init_args(args):
         cudnn.benchmark = False
 
     return Config(args)
+
+
+
 
 
 def pad_image_needed(img, size):
@@ -106,7 +128,14 @@ def pad_image_needed(img, size):
     # Chuyển lại về tensor
     return torch.from_numpy(img).permute(2, 0, 1)  # Chuyển từ [H,W,C] sang [C,H,W]
 
-from torchvision.transforms import ToTensor  # Sửa đây để import đúng ToTensor
+def rgb_to_y(x):
+    rgb_to_grey = torch.tensor([0.256789, 0.504129, 0.097906], dtype=x.dtype, device=x.device).view(1, -1, 1, 1)
+    return torch.sum(x * rgb_to_grey, dim=1, keepdim=True).add(16.0)
+
+
+def rgb_to_y(x):
+    rgb_to_grey = torch.tensor([0.256789, 0.504129, 0.097906], dtype=x.dtype, device=x.device).view(1, -1, 1, 1)
+    return torch.sum(x * rgb_to_grey, dim=1, keepdim=True).add(16.0)
 
 
 def rgb_to_y(x):
@@ -119,13 +148,16 @@ class GaussianDenoisingDataset(Dataset):
         self.data_name, self.data_type, self.patch_size = data_name, data_type, patch_size
         if self.data_type == 'train':
           self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
+          self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
         if self.data_type == 'test':
+          self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
           self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
 
         self.num = len(self.gt_images)
         self.sample_num = length if data_type == 'train' else self.num
         self.sigma_type = sigma_type
         self.sigma_range = sigma_range
+        self.use_y_channel = use_y_channel  # New parameter to control Y channel conversion
         self.use_y_channel = use_y_channel  # New parameter to control Y channel conversion
 
     def __len__(self):
@@ -167,6 +199,10 @@ class GaussianDenoisingDataset(Dataset):
         if self.use_y_channel:
             gt = rgb_to_y(gt)
             lq = rgb_to_y(lq)
+        # Convert to Y channel if requested
+        if self.use_y_channel:
+            gt = rgb_to_y(gt)
+            lq = rgb_to_y(lq)
 
         # Extract the image name for future use
         image_name = os.path.basename(self.gt_images[idx % self.num])
@@ -192,6 +228,38 @@ class RainDataset(Dataset):
     def __init__(self,task, data_path, data_name, data_type, patch_size=None, length=None):
         super().__init__()
         self.data_name, self.data_type, self.patch_size = data_name, data_type, patch_size
+        if task == 'derain':
+            if data_type == 'train':
+                self.rain_images = sorted(glob.glob('{}/{}/{}/Rain13K/input/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/Rain13K/target/*.*'.format(data_path, data_name, data_type)))
+            else:
+                self.rain_images = sorted(glob.glob('{}/{}/{}/Rain100L/input/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/Rain100L/target/*.*'.format(data_path, data_name, data_type)))
+
+        if task == 'real_denoise':
+            if data_type == 'train':
+                self.rain_images = sorted(glob.glob('{}/{}/{}/SIDD/input_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/SIDD/target_crops/*.*'.format(data_path, data_name, data_type)))
+            else:
+                self.rain_images = sorted(glob.glob('{}/{}/val/SIDD/input_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/val/SIDD/target_crops/*.*'.format(data_path, data_name, data_type)))
+        
+        if task == 'single_image_deblur':
+            if data_type == 'train':
+                self.rain_images = sorted(glob.glob('{}/{}/{}/DPDD/inputC_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/DPDD/target_crops/*.*'.format(data_path, data_name, data_type)))
+            else:
+                self.rain_images = sorted(glob.glob('{}/{}/val/DPDD/inputC_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/val/DPDD/target_crops/*.*'.format(data_path, data_name, data_type)))
+        
+        if task == 'motion_deblur':
+            if data_type == 'train':
+                self.rain_images = sorted(glob.glob('{}/{}/{}/GoPro/input_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/{}/GoPro/target_crops/*.*'.format(data_path, data_name, data_type)))
+            else:
+                self.rain_images = sorted(glob.glob('{}/{}/val/GoPro/input_crops/*.*'.format(data_path, data_name, data_type)))
+                self.norain_images = sorted(glob.glob('{}/{}/val/GoPro/target_crops/*.*'.format(data_path, data_name, data_type)))
+
         if task == 'derain':
             if data_type == 'train':
                 self.rain_images = sorted(glob.glob('{}/{}/{}/Rain13K/input/*.*'.format(data_path, data_name, data_type)))
