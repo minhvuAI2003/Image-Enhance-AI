@@ -13,7 +13,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 
 from model import Restormer
-from utils import parse_args, RainDataset, rgb_to_y, psnr, ssim
+from utils import parse_args, RainDataset, rgb_to_y, psnr, ssim,GaussianDenoisingDataset
 
 def set_seed(seed, rank):
     random.seed(seed + rank)
