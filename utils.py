@@ -136,32 +136,20 @@ def rgb_to_y(x):
     return torch.sum(x * rgb_to_grey, dim=1, keepdim=True).add(16.0)
 
 
-def rgb_to_y(x):
-    rgb_to_grey = torch.tensor([0.256789, 0.504129, 0.097906], dtype=x.dtype, device=x.device).view(1, -1, 1, 1)
-    return torch.sum(x * rgb_to_grey, dim=1, keepdim=True).add(16.0)
-
-
-def rgb_to_y(x):
-    rgb_to_grey = torch.tensor([0.256789, 0.504129, 0.097906], dtype=x.dtype, device=x.device).view(1, -1, 1, 1)
-    return torch.sum(x * rgb_to_grey, dim=1, keepdim=True).add(16.0)
-
 class GaussianDenoisingDataset(Dataset):
     def __init__(self, data_path, data_name, data_type, patch_size=None, length=None, sigma_type='random', sigma_range=(0, 50), use_y_channel=False):
         super().__init__()
         self.data_name, self.data_type, self.patch_size = data_name, data_type, patch_size
         if self.data_type == 'train':
-          self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
-          self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
+            self.gt_images = sorted(glob.glob('{}/{}/{}/DFWB/*.*'.format(data_path, data_name, data_type)))
         if self.data_type == 'test':
-          self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
-          self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type))+glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type)))  # Ground Truth images
+            self.gt_images = sorted(glob.glob('{}/{}/{}/CBSD68/*.*'.format(data_path, data_name, data_type)))
 
         self.num = len(self.gt_images)
         self.sample_num = length if data_type == 'train' else self.num
         self.sigma_type = sigma_type
         self.sigma_range = sigma_range
-        self.use_y_channel = use_y_channel  # New parameter to control Y channel conversion
-        self.use_y_channel = use_y_channel  # New parameter to control Y channel conversion
+        self.use_y_channel = use_y_channel
 
     def __len__(self):
         return self.sample_num
@@ -169,7 +157,7 @@ class GaussianDenoisingDataset(Dataset):
     def __getitem__(self, idx):
         # Load Ground Truth image
         gt_image = Image.open(self.gt_images[idx % self.num])
-        gt = ToTensor()(gt_image)
+        gt = T.to_tensor(gt_image)
         h, w = gt.shape[1:]
 
         if self.data_type == 'train':
@@ -178,8 +166,21 @@ class GaussianDenoisingDataset(Dataset):
             i, j, th, tw = RandomCrop.get_params(gt, (self.patch_size, self.patch_size))
             gt = T.crop(gt, i, j, th, tw)
 
-            # Add Gaussian noise to create Low Quality (LQ) image
-            lq = gt + self.add_gaussian_noise(gt)
+            # Convert to tensor first before adding noise
+            lq = gt.clone()
+
+            # Add Gaussian noise
+            if self.sigma_type == 'constant':
+                sigma_value = self.sigma_range
+            elif self.sigma_type == 'random':
+                sigma_value = random.uniform(self.sigma_range[0], self.sigma_range[1])
+            elif self.sigma_type == 'choice':
+                sigma_value = random.choice(self.sigma_range)
+
+            noise_level = torch.FloatTensor([sigma_value])/255.0
+            noise = torch.randn_like(lq).mul_(noise_level)
+            lq.add_(noise)
+            lq.clamp_(0, 1)  # Ensure values stay in [0,1] range
 
             # Augmentations (flip, rotate, etc.)
             if random.random() < 0.5:
@@ -195,13 +196,15 @@ class GaussianDenoisingDataset(Dataset):
             pad_w = new_w - w if w % 8 != 0 else 0
             gt = F.pad(gt, (0, pad_w, 0, pad_h), 'reflect')
 
-            lq = gt + np.random.normal(0, self.sigma_range[0] / 255.0, gt.shape)
-            lq = lq.clone().detach().to(dtype=gt.dtype)
+            # Convert to tensor first before adding noise
+            lq = gt.clone()
+            
+            # Add noise for testing
+            noise_level = torch.FloatTensor([self.sigma_range[0]])/255.0
+            noise = torch.randn_like(lq).mul_(noise_level)
+            lq.add_(noise)
+            lq.clamp_(0, 1)  # Ensure values stay in [0,1] range
 
-        # Convert to Y channel if requested
-        if self.use_y_channel:
-            gt = rgb_to_y(gt)
-            lq = rgb_to_y(lq)
         # Convert to Y channel if requested
         if self.use_y_channel:
             gt = rgb_to_y(gt)
@@ -211,21 +214,6 @@ class GaussianDenoisingDataset(Dataset):
         image_name = os.path.basename(self.gt_images[idx % self.num])
 
         return lq, gt, image_name, h, w
-
-    def add_gaussian_noise(self, image):
-        """Add Gaussian noise to image."""
-        if self.sigma_type == 'constant':
-            sigma_value = self.sigma_range
-        elif self.sigma_type == 'random':
-            sigma_value = random.uniform(self.sigma_range[0], self.sigma_range[1])
-        elif self.sigma_type == 'choice':
-            sigma_value = random.choice(self.sigma_range)
-        else:
-            raise ValueError("Unsupported sigma type: {}".format(self.sigma_type))
-
-        noise_level = torch.FloatTensor([sigma_value])/255.0
-        noise = torch.randn(image.size()).mul_(noise_level).float()
-        return noise
 
 class RainDataset(Dataset):
     def __init__(self,task, data_path, data_name, data_type, patch_size=None, length=None):
