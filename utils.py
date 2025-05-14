@@ -12,6 +12,8 @@ from torch.backends import cudnn
 from torch.utils.data import Dataset
 from torchvision.transforms import RandomCrop
 import torchvision.transforms as T_func
+from torchvision.transforms import ToTensor  # Sửa đây để import đúng ToTensor
+
 
 def parse_args():
     desc = 'Pytorch Implementation of \'Restormer: Efficient Transformer for High-Resolution Image Restoration\''
