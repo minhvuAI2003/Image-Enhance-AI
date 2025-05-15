@@ -37,6 +37,7 @@ def cleanup_ddp():
 def test_loop(model, data_loader, num_iter, args, rank, device):
     model.eval()
     total_psnr, total_ssim, count = 0.0, 0.0, 0
+    
     with torch.no_grad():
         test_bar = tqdm(data_loader, initial=1, dynamic_ncols=True) if rank == 0 else data_loader
         for rain, norain, name, h, w in test_bar:
@@ -54,7 +55,20 @@ def test_loop(model, data_loader, num_iter, args, rank, device):
                 Image.fromarray(out.squeeze(dim=0).permute(1, 2, 0).contiguous().cpu().numpy()).save(save_path)
                 test_bar.set_description('Test Iter: [{}/{}] PSNR: {:.2f} SSIM: {:.3f}'
                                          .format(num_iter, args.num_iter, total_psnr / count, total_ssim / count))
-    return total_psnr / count, total_ssim / count
+
+    # Convert to tensors for all-reduce
+    total_psnr_tensor = torch.tensor([total_psnr, count], dtype=torch.float32, device=device)
+    total_ssim_tensor = torch.tensor([total_ssim, count], dtype=torch.float32, device=device)
+    
+    # All-reduce to get sum from all ranks
+    dist.all_reduce(total_psnr_tensor, op=dist.ReduceOp.SUM)
+    dist.all_reduce(total_ssim_tensor, op=dist.ReduceOp.SUM)
+    
+    # Calculate final average
+    final_psnr = total_psnr_tensor[0].item() / total_psnr_tensor[1].item()
+    final_ssim = total_ssim_tensor[0].item() / total_ssim_tensor[1].item()
+    
+    return final_psnr, final_ssim
 
 def save_loop(model, data_loader, num_iter, results, best_psnr, best_ssim, args, rank, device):
     val_psnr, val_ssim = test_loop(model, data_loader, num_iter, args, rank, device)
