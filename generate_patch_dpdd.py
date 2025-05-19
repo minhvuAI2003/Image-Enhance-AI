@@ -161,10 +161,10 @@ os.makedirs(lrR_tar, exist_ok=True)
 os.makedirs(lrC_tar, exist_ok=True)
 os.makedirs(hrC_tar, exist_ok=True)
 
-lrL_files = natsorted(glob(os.path.join(src, 'train', 'inputL', '*.png')))
-lrR_files = natsorted(glob(os.path.join(src, 'train', 'inputR', '*.png')))
-lrC_files = natsorted(glob(os.path.join(src, 'train', 'inputC', '*.png')))
-hrC_files = natsorted(glob(os.path.join(src, 'train', 'target', '*.png')))
+lrL_files = natsorted(glob(os.path.join(src,  'inputL', '*.png')))
+lrR_files = natsorted(glob(os.path.join(src, 'inputR', '*.png')))
+lrC_files = natsorted(glob(os.path.join(src,  'inputC', '*.png')))
+hrC_files = natsorted(glob(os.path.join(src,  'target', '*.png')))
 
 files = [(i, j, k, l) for i, j, k, l in zip(lrL_files, lrR_files, lrC_files, hrC_files)]
 
@@ -191,10 +191,10 @@ os.makedirs(lrR_tar, exist_ok=True)
 os.makedirs(lrC_tar, exist_ok=True)
 os.makedirs(hrC_tar, exist_ok=True)
 
-lrL_files = natsorted(glob(os.path.join(src, 'val', 'inputL', '*.png')))
-lrR_files = natsorted(glob(os.path.join(src, 'val', 'inputR', '*.png')))
-lrC_files = natsorted(glob(os.path.join(src, 'val', 'inputC', '*.png')))
-hrC_files = natsorted(glob(os.path.join(src, 'val', 'target', '*.png')))
+lrL_files = natsorted(glob(os.path.join(src, 'inputL', '*.png')))
+lrR_files = natsorted(glob(os.path.join(src, 'inputR', '*.png')))
+lrC_files = natsorted(glob(os.path.join(src,  'inputC', '*.png')))
+hrC_files = natsorted(glob(os.path.join(src, 'target', '*.png')))
 
 files = [(i, j, k, l) for i, j, k, l in zip(lrL_files, lrR_files, lrC_files, hrC_files)]
 
