@@ -1,5 +1,23 @@
 # Hướng Dẫn Sử Dụng `run_all.sh`
 
+## Chuẩn Bị
+
+### 1. Di Chuyển Vào Thư Mục Gốc
+Đầu tiên, bạn cần di chuyển vào thư mục gốc của dự án:
+```bash
+cd Image-Enhance-AI
+```
+
+### 2. Chỉnh Sửa File utils.py
+Mở file `utils.py` và bỏ comment dòng 88 bằng cách xóa dấu # ở đầu dòng:
+```python
+# Từ:
+# self.backend=args.backend
+
+# Thành:
+self.backend=args.backend
+```
+
 ## Cài Đặt và Chạy Script
 
 ### 1. Tạo quyền thực thi cho `run_all.sh`
@@ -43,3 +61,32 @@ Sau khi đã cấp quyền thực thi, bạn có thể chạy script với các 
 - **motion_deblur**: Chạy tác vụ làm rõ ảnh bị mờ do chuyển động.
 - **single_image_deblur**: Chạy tác vụ làm rõ ảnh bị mờ theo phương pháp đơn.
 - **gaussian_denoise**: Chạy tác vụ khử nhiễu ảnh với noise Gaussian.
+
+## Chạy Server
+
+### 1. Cài Đặt Dependencies
+Trước khi chạy server, hãy đảm bảo bạn đã cài đặt tất cả các dependencies cần thiết:
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Khởi Động Server
+Để chạy server, sử dụng lệnh sau:
+```bash
+python api.py
+```
+
+### 3. Truy Cập API
+Sau khi server đã chạy, bạn có thể truy cập các API endpoints sau:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+### 4. Các Endpoints Chính
+- `/process/derain`: Xử lý ảnh bị mưa
+- `/process/real_denoise`: Khử nhiễu ảnh thực
+- `/process/motion_deblur`: Làm rõ ảnh bị mờ do chuyển động
+- `/process/single_image_deblur`: Làm rõ ảnh bị mờ đơn
+- `/process/gaussian_denoise`: Khử nhiễu Gaussian
+
+### 5. Dừng Server
+Để dừng server, nhấn `Ctrl + C` trong terminal đang chạy server.
