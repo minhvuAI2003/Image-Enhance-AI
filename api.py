@@ -10,6 +10,7 @@ from model import Restormer
 from utils import get_default_args
 from pyngrok import ngrok, conf
 import uvicorn
+import numpy as np
 
 app = FastAPI()
 
@@ -21,11 +22,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# Tăng giới hạn kích thước request
-# app.add_middleware(
-#     CORSMiddleware,
-#     max_request_size=10 * 1024 * 1024  # 10MB
-# )
+
 # === Ngrok setup ===
 def setup_ngrok():
     conf.get_default().auth_token = "2p1nq5rK3ywq2n3HvcTGVDgtUGb_WPjQ2a39CcdETaTn4jFq"
@@ -48,8 +45,10 @@ def load_model(task: str):
 
     ckpt_paths = {
         "derain": "models/derain.pth",
-        "gaussian_denoise": "models/gauss_denoise.pth",
-        "real_denoise": "models/real_denoise.pth"
+        "gaussian_denoise": "models/gaussian_denoise.pth",
+        "real_denoise": "models/real_denoise.pth",
+        "motion_deblur": "models/motion_deblur.pth",
+        "single_image_deblur": "models/single_image_deblur.pth"
     }
     ckpt_path = ckpt_paths.get(task)
     if not ckpt_path:
@@ -74,8 +73,14 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-
-
+def add_gaussian_noise(image: Image.Image, sigma: float = 25.0/255.0) -> Image.Image:
+    img_tensor = transform(image).unsqueeze(0)
+    noise_level = torch.FloatTensor([sigma]).view(1, 1, 1, 1)
+    noise = torch.randn_like(img_tensor).mul(noise_level)
+    noisy_img = img_tensor + noise
+    noisy_img = torch.clamp(noisy_img, 0, 1)
+    noisy_img = transforms.ToPILImage()(noisy_img.squeeze(0))
+    return noisy_img
 
 import hashlib
 
@@ -88,7 +93,7 @@ async def process_image_file(file: UploadFile, task: str):
 
         # Read and validate image
         image_bytes = await file.read()
-        print(f"Nhận file: {file.filename}, size: {len(image_bytes)} bytes, hash: {hashlib.md5(image_bytes).hexdigest()}")  # <-- Thêm dòng này
+        print(f"Nhận file: {file.filename}, size: {len(image_bytes)} bytes, hash: {hashlib.md5(image_bytes).hexdigest()}")
 
         if not image_bytes:
             raise HTTPException(status_code=400, detail="Empty file")
@@ -126,7 +131,47 @@ async def process_image_file(file: UploadFile, task: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
 
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Query
+# ... các import khác giữ nguyên ...
 
+@app.post("/add-noise")
+async def add_noise(
+    file: UploadFile = File(...),
+    level: int = Query(25, ge=1, le=75, description="Gaussian noise level (sigma)")
+):
+    """Thêm nhiễu Gaussian vào ảnh"""
+    try:
+        # Validate file
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="File must be an image")
+
+        # Read and validate image
+        image_bytes = await file.read()
+        print(f"Nhận file để thêm nhiễu: {file.filename}, size: {len(image_bytes)} bytes, level={level}")
+
+        if not image_bytes:
+            raise HTTPException(status_code=400, detail="Empty file")
+
+        try:
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image format: {str(e)}")
+
+        # Thêm nhiễu Gaussian với sigma do client gửi lên
+        sigma = float(level) / 255.0
+        noisy_image = add_gaussian_noise(image, sigma=sigma)
+        
+        # Convert to bytes and return
+        buf = io.BytesIO()
+        noisy_image.save(buf, format='PNG')
+        buf.seek(0)
+
+        return StreamingResponse(buf, media_type="image/png")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding noise: {str(e)}")
 
 @app.post("/derain")
 async def derain(file: UploadFile = File(...)):
@@ -143,14 +188,27 @@ async def real_denoise(file: UploadFile = File(...)):
     """Remove real noise from image"""
     return await process_image_file(file, "real_denoise")
 
+@app.post("/motion-deblur")
+async def motion_deblur(file: UploadFile = File(...)):
+    """Remove motion blur from image"""
+    return await process_image_file(file, "motion_deblur")
+
+@app.post("/single-image-deblur")
+async def single_image_deblur(file: UploadFile = File(...)):
+    """Remove blur from single image"""
+    return await process_image_file(file, "single_image_deblur")
+
 @app.get("/")
 async def root():
     """API endpoints information"""
     return {
         "endpoints": {
+            "/add-noise": "Add Gaussian noise to image",
             "/derain": "Remove rain from image",
             "/gaussian-denoise": "Remove Gaussian noise from image",
-            "/real-denoise": "Remove real noise from image"
+            "/real-denoise": "Remove real noise from image",
+            "/motion-deblur": "Remove motion blur from image",
+            "/single-image-deblur": "Remove blur from single image"
         }
     }
 
