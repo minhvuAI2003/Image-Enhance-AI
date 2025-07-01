@@ -1,6 +1,4 @@
-# Hướng Dẫn Sử Dụng `run_all.sh`
-
-## Chuẩn Bị
+# Hướng Dẫn Huấn Luyện Restormer
 
 ### 1. Di Chuyển Vào Thư Mục Gốc
 Đầu tiên, bạn cần di chuyển vào thư mục gốc của dự án:
@@ -16,20 +14,13 @@ cd Image-Enhance-AI
 ```
 
 ### 2. Chỉnh Sửa File utils.py
-Mở file `utils.py` và bỏ comment dòng 88 bằng cách xóa dấu # ở đầu dòng:
-```python
-# Từ:
-# self.backend=args.backend
+Mở file `utils.py` và bỏ comment dòng 89 bằng cách xóa dấu # ở đầu dòng:
 
-# Thành:
-self.backend=args.backend
-```
 
 ## Cài Đặt và Chạy Script
 
 ### 1. Tạo quyền thực thi cho `run_all.sh`
 Trước khi chạy script, bạn cần đảm bảo rằng file `run_all.sh` có quyền thực thi. Bạn có thể làm điều này bằng cách chạy lệnh sau trong terminal:
-
 ```bash
 chmod +x run_all.sh
 ```
@@ -69,16 +60,9 @@ Sau khi đã cấp quyền thực thi, bạn có thể chạy script với các 
 - **single_image_deblur**: Chạy tác vụ làm rõ ảnh bị mờ tiêu cự.
 - **gaussian_denoise**: Chạy tác vụ khử nhiễu ảnh với noise Gaussian.
 
-## Chạy Server
+# Hướng dẫn chạy Server
 ### 1. Chỉnh Sửa File utils.py
-Mở file `utils.py` và bỏ comment dòng 88 bằng cách xóa dấu # ở đầu dòng:
-```python
-Từ:
-# self.backend=args.backend
-
-Thành:
-self.backend=args.backend
-```
+Mở file `utils.py` comment tại dòng 89 bằng cách xóa dấu # ở đầu dòng:
 
 ### 2. Cài Đặt Dependencies
 Trước khi chạy server, hãy đảm bảo bạn đã cài đặt tất cả các dependencies cần thiết:
@@ -93,15 +77,8 @@ python api.py
 ```
 Server sẽ tự động:
 - Khởi động FastAPI server trên port 8000
-- Tạo ngrok tunnel để có thể truy cập từ internet
-- In ra public URL để truy cập API từ bên ngoài
 
-### 4. Truy Cập API
-Sau khi server đã chạy, bạn có thể truy cập các API endpoints sau:
-- API Documentation: http://localhost:8000/docs
-- API Information: http://localhost:8000/
-
-### 5. Các Endpoints Chính
+### 4. Các Endpoints Chính
 - `/add-noise`: Thêm nhiễu Gaussian vào ảnh (có thể chỉ định mức độ nhiễu từ 1-75)
 - `/derain`: Xử lý ảnh bị mưa
 - `/gaussian-denoise`: Khử nhiễu Gaussian
