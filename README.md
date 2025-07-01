@@ -66,18 +66,27 @@ Sau khi đã cấp quyền thực thi, bạn có thể chạy script với các 
 - **derain**: Chạy tác vụ giảm mưa cho ảnh.
 - **real_denoise**: Chạy tác vụ khử nhiễu ảnh thực, bao gồm tải dữ liệu từ SIDD với noise thực và tạo các patch.
 - **motion_deblur**: Chạy tác vụ làm rõ ảnh bị mờ do chuyển động.
-- **single_image_deblur**: Chạy tác vụ làm rõ ảnh bị mờ theo phương pháp đơn.
+- **single_image_deblur**: Chạy tác vụ làm rõ ảnh bị mờ tiêu cự.
 - **gaussian_denoise**: Chạy tác vụ khử nhiễu ảnh với noise Gaussian.
 
 ## Chạy Server
+### 1. Chỉnh Sửa File utils.py
+Mở file `utils.py` và bỏ comment dòng 88 bằng cách xóa dấu # ở đầu dòng:
+```python
+Từ:
+# self.backend=args.backend
 
-### 1. Cài Đặt Dependencies
+Thành:
+self.backend=args.backend
+```
+
+### 2. Cài Đặt Dependencies
 Trước khi chạy server, hãy đảm bảo bạn đã cài đặt tất cả các dependencies cần thiết:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Khởi Động Server
+### 3. Khởi Động Server
 Để chạy server, sử dụng lệnh sau:
 ```bash
 python api.py
@@ -87,12 +96,12 @@ Server sẽ tự động:
 - Tạo ngrok tunnel để có thể truy cập từ internet
 - In ra public URL để truy cập API từ bên ngoài
 
-### 3. Truy Cập API
+### 4. Truy Cập API
 Sau khi server đã chạy, bạn có thể truy cập các API endpoints sau:
 - API Documentation: http://localhost:8000/docs
 - API Information: http://localhost:8000/
 
-### 4. Các Endpoints Chính
+### 5. Các Endpoints Chính
 - `/add-noise`: Thêm nhiễu Gaussian vào ảnh (có thể chỉ định mức độ nhiễu từ 1-75)
 - `/derain`: Xử lý ảnh bị mưa
 - `/gaussian-denoise`: Khử nhiễu Gaussian
@@ -100,25 +109,17 @@ Sau khi server đã chạy, bạn có thể truy cập các API endpoints sau:
 - `/motion-deblur`: Làm rõ ảnh bị mờ do chuyển động
 - `/single-image-deblur`: Làm rõ ảnh bị mờ đơn
 
-### 5. Cách Sử Dụng API
+### 6. Cách Sử Dụng API
 1. Gửi ảnh dưới dạng file qua POST request
 2. Đối với endpoint `/add-noise`, có thể thêm tham số `level` để chỉ định mức độ nhiễu (1-75)
 3. Server sẽ trả về ảnh đã xử lý dưới dạng PNG
 
-### 6. Dừng Server
+### 7. Dừng Server
 Để dừng server, nhấn `Ctrl + C` trong terminal đang chạy server.
 
-```
 
-### 2. Chỉnh Sửa File utils.py
-Mở file `utils.py` và bỏ comment dòng 88 bằng cách xóa dấu # ở đầu dòng:
-```python
-# Từ:
-# self.backend=args.backend
 
-# Thành:
-self.backend=args.backend
-```
+
 
 ## Cài Đặt và Chạy Script
 
